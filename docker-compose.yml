@@ -2,10 +2,8 @@ version: '3.8'
 
 services:
   ezfile:
-    build:
-      context: .
-      args:
-        URL_BASE_PATH: ${URL_BASE_PATH:-}
+    # Verwende 'latest' für stabile Releases, oder 'dev' für aktuelle Entwicklungsversionen
+    image: ghcr.io/yezun-hikari/ezfile:dev
     container_name: ezfile
     restart: unless-stopped
     ports:
@@ -13,6 +11,7 @@ services:
     environment:
       - BASE_PATH=/app/storage
       - DOMAIN=${DOMAIN:-localhost:3000}
+      - URL_BASE_PATH=${URL_BASE_PATH:-}
     volumes:
       - ./storage:/app/storage
       - ./dev.db:/app/prisma/dev.db
