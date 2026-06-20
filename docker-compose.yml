@@ -12,6 +12,6 @@ services:
       - BASE_PATH=/app/storage
       - DOMAIN=${DOMAIN:-localhost:3000}
       - URL_BASE_PATH=${URL_BASE_PATH:-}
+      - DATABASE_URL=file:/app/storage/dev.db
     volumes:
       - ./storage:/app/storage
-      - ./prisma:/app/prisma

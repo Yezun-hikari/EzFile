@@ -4,12 +4,12 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 # Install dependencies
-FROM base AS deps
+FROM --platform=$BUILDPLATFORM base AS deps
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 # Builder
-FROM base AS builder
+FROM --platform=$BUILDPLATFORM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -26,6 +26,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
+ENV DATABASE_URL="file:/app/storage/dev.db"
 
 # Install supervisord
 RUN apk add --no-cache supervisor
@@ -42,6 +43,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/src/worker.ts ./src/worker.ts
 # Need ts-node for worker
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
 # Supervisor config
 COPY supervisord.conf /etc/supervisord.conf
