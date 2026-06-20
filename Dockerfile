@@ -31,7 +31,7 @@ ENV NEXT_TELEMETRY_DISABLED 1
 RUN apk add --no-cache supervisor
 
 # Copy nextjs build
-COPY --from=builder /app/public ./public
+COPY public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
