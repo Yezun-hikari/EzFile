@@ -51,6 +51,10 @@ RUN mkdir -p /app/storage
 ENV BASE_PATH=/app/storage
 ENV PORT=3000
 
+# Copy and setup start script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 EXPOSE 3000
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/app/start.sh"]

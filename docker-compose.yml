@@ -14,4 +14,4 @@ services:
       - URL_BASE_PATH=${URL_BASE_PATH:-}
     volumes:
       - ./storage:/app/storage
-      - ./dev.db:/app/prisma/dev.db
+      - ./prisma:/app/prisma
