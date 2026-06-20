@@ -1,15 +1,20 @@
-# Base image
+# Base image for the final runner (target platform)
 FROM node:20-alpine AS base
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
+# Base image for building (native host platform)
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder-base
+RUN apk add --no-cache libc6-compat openssl
+WORKDIR /app
+
 # Install dependencies
-FROM --platform=$BUILDPLATFORM base AS deps
+FROM builder-base AS deps
 COPY package.json package-lock.json* ./
 RUN npm ci
 
 # Builder
-FROM --platform=$BUILDPLATFORM base AS builder
+FROM builder-base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
