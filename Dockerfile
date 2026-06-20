@@ -13,7 +13,10 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ARG DATABASE_URL="file:/tmp/dev.db"
+ENV DATABASE_URL=${DATABASE_URL}
 RUN npx prisma generate
+RUN npx prisma db push
 ARG URL_BASE_PATH
 ENV URL_BASE_PATH=$URL_BASE_PATH
 RUN npm run build
