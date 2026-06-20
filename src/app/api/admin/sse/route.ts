@@ -8,17 +8,9 @@ export async function GET(req: Request) {
   const stream = new ReadableStream({
     start(controller) {
       const sendUpdate = () => {
-        // Dummy data for now. In a real app, this would pull from a global transfer manager or redis
+        // Dummy data removed. Real transfer manager needed here.
         const data = {
-          transfers: [
-            {
-              id: "1",
-              filename: "video.mp4",
-              type: "Upload",
-              progress: Math.floor(Math.random() * 100),
-              speed: (Math.random() * 10).toFixed(1),
-            }
-          ]
+          transfers: []
         };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 
@@ -26,6 +27,8 @@ export async function POST(req: Request) {
         status: "ACTIVE", // Or PENDING if files are uploading
       },
     });
+
+    revalidatePath("/admin");
 
     return NextResponse.json({ link });
   } catch (error) {
