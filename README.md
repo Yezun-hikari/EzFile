@@ -39,7 +39,7 @@ The recommended way to run EzFile is via **Docker**.
 
    *Note on image tags:* 
    - Releases are tagged as `:latest` for stable versions.
-   - For bleeding-edge features from the active development branch, use the `:alpha` tag.
+   - For bleeding-edge features from the active development branch, use the `:dev` tag.
 
 3. Open your browser and navigate to `http://localhost:3000`.
 
