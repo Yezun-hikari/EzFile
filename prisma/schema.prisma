@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Admin {
+  id       String    @id @default(uuid())
+  username String    @unique
+  password String    // Hashed
+  sessions Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Link {
+  id           String    @id @default(uuid())
+  type         String    // "SHARE" or "DROP_ZONE"
+  urlPath      String    @unique
+  password     String?   // Plain-text as requested
+  maxUsage     Int?
+  usageCount   Int       @default(0)
+  maxSizeLimit BigInt?   // For Drop-Zones (bytes)
+  expiresAt    DateTime?
+  status       String    @default("ACTIVE") // "ACTIVE", "EXPIRED", "DELETED"
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  files        File[]
+}
+
+model File {
+  id           String   @id @default(uuid())
+  linkId       String
+  link         Link     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  originalName String
+  storagePath  String   // Relative to BASE_PATH
+  size         BigInt
+  mimeType     String
+  isComplete   Boolean  @default(true) // For chunked uploads
+  createdAt    DateTime @default(now())
+}
