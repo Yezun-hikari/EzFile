@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { transferManager } from "@/lib/transferManager";
 
 export const dynamic = 'force-dynamic';
 
@@ -7,22 +8,19 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     start(controller) {
-      const sendUpdate = () => {
-        // Dummy data removed. Real transfer manager needed here.
-        const data = {
-          transfers: []
-        };
+      const sendUpdate = (transfers: any[]) => {
+        const data = { transfers };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
       // Send initial data
-      sendUpdate();
+      sendUpdate(transferManager.getTransfers());
 
-      // Send update every 2 seconds
-      const intervalId = setInterval(sendUpdate, 2000);
+      // Subscribe to real-time updates
+      const unsubscribe = transferManager.subscribe(sendUpdate);
 
       req.signal.addEventListener("abort", () => {
-        clearInterval(intervalId);
+        unsubscribe();
         controller.close();
       });
     },

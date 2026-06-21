@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { transferManager } from "@/lib/transferManager";
+import { Transform } from "stream";
 import fs from "fs";
 import path from "path";
 
@@ -25,6 +27,31 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
     const totalSize = stat.size;
     const rangeHeader = req.headers.get("range");
 
+    const transferId = `download-${file.id}-${Date.now()}`;
+    transferManager.startTransfer(transferId, file.originalName, "DOWNLOAD", totalSize);
+
+    let bytesDownloaded = 0;
+    const progressStream = new Transform({
+      transform(chunk, encoding, callback) {
+        bytesDownloaded += chunk.length;
+        transferManager.updateTransfer(transferId, bytesDownloaded);
+        callback(null, chunk);
+      },
+      flush(callback) {
+        transferManager.completeTransfer(transferId);
+        callback();
+      }
+    });
+
+    // Handle unexpected close/error
+    progressStream.on('error', () => transferManager.failTransfer(transferId));
+    progressStream.on('close', () => {
+      if (bytesDownloaded < totalSize) {
+        // Only fail if it closed before completing
+        transferManager.failTransfer(transferId);
+      }
+    });
+
     if (rangeHeader) {
       const parts = rangeHeader.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
@@ -32,8 +59,9 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       const chunksize = (end - start) + 1;
       
       const fileStream = fs.createReadStream(filePath, { start, end });
+      const pipedStream = fileStream.pipe(progressStream);
       
-      const res = new NextResponse(fileStream as any, {
+      const res = new NextResponse(pipedStream as any, {
         status: 206,
         headers: {
           "Content-Range": `bytes ${start}-${end}/${totalSize}`,
@@ -46,7 +74,8 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       return res;
     } else {
       const fileStream = fs.createReadStream(filePath);
-      return new NextResponse(fileStream as any, {
+      const pipedStream = fileStream.pipe(progressStream);
+      return new NextResponse(pipedStream as any, {
         headers: {
           "Content-Length": totalSize.toString(),
           "Content-Type": file.mimeType,

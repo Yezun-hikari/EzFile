@@ -67,7 +67,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
           
-          await fetch(`/api/upload?linkId=${linkData.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}`, {
+          await fetch(`/api/upload?linkId=${linkData.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
             method: "POST",
             body: chunk,
           });

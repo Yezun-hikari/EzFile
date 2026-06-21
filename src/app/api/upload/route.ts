@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { transferManager } from "@/lib/transferManager";
 import fs from "fs";
 import path from "path";
 
@@ -12,6 +13,7 @@ export async function POST(req: Request) {
     const filename = url.searchParams.get("filename");
     const chunkIndex = parseInt(url.searchParams.get("chunkIndex") || "0");
     const totalChunks = parseInt(url.searchParams.get("totalChunks") || "1");
+    const totalSize = parseInt(url.searchParams.get("totalSize") || "0");
     
     if (!linkId || !filename) {
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
@@ -43,7 +45,18 @@ export async function POST(req: Request) {
       // Start fresh if it's the first chunk
       fs.unlinkSync(filePath);
     }
+    
+    // TransferManager logic
+    const transferId = `upload-${linkId}-${safeFilename}`;
+    if (chunkIndex === 0) {
+      transferManager.startTransfer(transferId, filename, "UPLOAD", totalSize);
+    }
+
     fs.appendFileSync(filePath, buffer);
+
+    // Update progress
+    const currentSize = fs.statSync(filePath).size;
+    transferManager.updateTransfer(transferId, currentSize);
 
     if (chunkIndex === totalChunks - 1) {
       // Last chunk, create File record in DB
@@ -59,12 +72,20 @@ export async function POST(req: Request) {
         },
       });
 
+      transferManager.completeTransfer(transferId);
       return NextResponse.json({ success: true, complete: true });
     }
 
     return NextResponse.json({ success: true, complete: false });
   } catch (error) {
     console.error(error);
+    const url = new URL(req.url);
+    const linkId = url.searchParams.get("linkId");
+    const filename = url.searchParams.get("filename");
+    if (linkId && filename) {
+        const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+        transferManager.failTransfer(`upload-${linkId}-${safeFilename}`);
+    }
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }
 }
