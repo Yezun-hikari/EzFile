@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { transferManager } from "@/lib/transferManager";
+import { transferManager, TransferInfo } from "@/lib/transferManager";
 
 export const dynamic = 'force-dynamic';
 
@@ -8,7 +8,7 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     start(controller) {
-      const sendUpdate = (transfers: any[]) => {
+      const sendUpdate = (transfers: TransferInfo[]) => {
         const data = { transfers };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };

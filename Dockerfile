@@ -1,6 +1,6 @@
 # Base image for the final runner (target platform)
 FROM node:20-alpine AS base
-RUN apk add --no-cache libc6-compat openssl
+RUN apk add --no-cache libc6-compat openssl supervisor
 WORKDIR /app
 
 # Base image for building (native host platform)
@@ -8,10 +8,15 @@ FROM --platform=$BUILDPLATFORM node:20-alpine AS builder-base
 RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
-# Install dependencies
+# Install all dependencies
 FROM builder-base AS deps
 COPY package.json package-lock.json* ./
 RUN npm ci
+
+# Install only production dependencies
+FROM builder-base AS prod-deps
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
 
 # Builder
 FROM builder-base AS builder
@@ -25,6 +30,7 @@ RUN npx prisma db push
 ARG URL_BASE_PATH
 ENV URL_BASE_PATH=$URL_BASE_PATH
 RUN npm run build
+RUN npm run worker:build
 
 # Runner
 FROM base AS runner
@@ -33,22 +39,22 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV DATABASE_URL="file:/app/storage/dev.db"
 
-# Install supervisord
-RUN apk add --no-cache supervisor
-
-# Copy nextjs build
+# Copy nextjs standalone build
 COPY public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/package.json ./package.json
 
-# Copy worker script
-COPY --from=builder /app/src/worker.ts ./src/worker.ts
-# Need ts-node for worker
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
+# Copy production dependencies
+COPY --from=prod-deps /app/node_modules ./node_modules
+# Ensure generated prisma client is copied
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+
+# Copy compiled worker script
+COPY --from=builder /app/dist/worker.js ./dist/worker.js
 
 # Supervisor config
 COPY supervisord.conf /etc/supervisord.conf

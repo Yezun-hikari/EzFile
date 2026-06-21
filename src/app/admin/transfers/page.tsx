@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
+import type { TransferInfo } from "@/lib/transferManager";
 
 export default function TransfersPage() {
-  const [transfers, setTransfers] = useState<any[]>([]);
+  const [transfers, setTransfers] = useState<TransferInfo[]>([]);
 
   useEffect(() => {
     const eventSource = new EventSource("/api/admin/sse");
