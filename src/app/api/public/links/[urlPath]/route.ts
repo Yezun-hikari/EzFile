@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // Helper to handle Prisma BigInt serialization
-const serializeBigInts = (link: any) => {
+const serializeBigInts = (link: Record<string, unknown> & { maxSizeLimit?: bigint | null, files?: Array<Record<string, unknown> & { size: bigint }> }) => {
   if (!link) return link;
   return {
     ...link,
     maxSizeLimit: link.maxSizeLimit ? link.maxSizeLimit.toString() : null,
-    files: link.files ? link.files.map((f: any) => ({
+    files: link.files ? link.files.map((f) => ({
       ...f,
       size: f.size.toString()
     })) : [],

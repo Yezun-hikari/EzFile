@@ -7,7 +7,19 @@ import { Download, UploadCloud, FileIcon, ImageIcon, VideoIcon } from "lucide-re
 import { Input } from "@/components/ui/input";
 
 export default function PublicLinkPage({ params }: { params: { urlPath: string } }) {
-  const [linkData, setLinkData] = useState<any>(null);
+  type LinkData = {
+    id: string;
+    type: string;
+    maxSizeLimit: string | null;
+    files: Array<{
+      id: string;
+      originalName: string;
+      mimeType: string;
+      size: string;
+    }>;
+  };
+
+  const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [requirePassword, setRequirePassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -116,7 +128,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
 
         {isShare ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {linkData.files.map((file: any) => {
+            {linkData.files.map((file) => {
               const isImage = file.originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
               const isVideo = file.originalName.match(/\.(mp4|webm|ogg)$/i);
 

@@ -75,7 +75,7 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
     } else {
       const fileStream = fs.createReadStream(filePath);
       const pipedStream = fileStream.pipe(progressStream);
-      return new NextResponse(pipedStream as any, {
+      return new NextResponse(pipedStream as unknown as ReadableStream, {
         headers: {
           "Content-Length": totalSize.toString(),
           "Content-Type": file.mimeType,
