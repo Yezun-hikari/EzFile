@@ -1,6 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Helper to handle Prisma BigInt serialization
+const serializeBigInts = (link: any) => {
+  if (!link) return link;
+  return {
+    ...link,
+    maxSizeLimit: link.maxSizeLimit ? link.maxSizeLimit.toString() : null,
+    files: link.files ? link.files.map((f: any) => ({
+      ...f,
+      size: f.size.toString()
+    })) : [],
+  };
+};
+
 export async function POST(req: Request, { params }: { params: { urlPath: string } }) {
   try {
     const { password } = await req.json();
@@ -30,7 +43,7 @@ export async function POST(req: Request, { params }: { params: { urlPath: string
       });
     }
 
-    return NextResponse.json({ link });
+    return NextResponse.json({ link: serializeBigInts(link) });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
@@ -60,8 +73,9 @@ export async function GET(req: Request, { params }: { params: { urlPath: string 
       });
     }
 
-    return NextResponse.json({ link });
+    return NextResponse.json({ link: serializeBigInts(link) });
   } catch (error) {
+    console.error(error);
     return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
