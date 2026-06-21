@@ -97,9 +97,7 @@ class TransferManager {
 
   private notify() {
     const data = this.getTransfers();
-    for (const listener of this.listeners) {
-      listener(data);
-    }
+    Array.from(this.listeners).forEach((listener) => listener(data));
   }
 }
 
