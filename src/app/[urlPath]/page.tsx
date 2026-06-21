@@ -32,8 +32,9 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
     setLoading(true);
     setError("");
     try {
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
       const opts = pwd ? { method: "POST", body: JSON.stringify({ password: pwd }) } : { method: "GET" };
-      const res = await fetch(`/api/public/links/${params.urlPath}`, opts);
+      const res = await fetch(`${basePath}/api/public/links/${params.urlPath}`, opts);
       const data = await res.json();
 
       if (res.ok) {
@@ -79,7 +80,8 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
           const end = Math.min(start + CHUNK_SIZE, file.size);
           const chunk = file.slice(start, end);
           
-          await fetch(`/api/upload?linkId=${linkData.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
+          const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+          await fetch(`${basePath}/api/upload?linkId=${linkData.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
             method: "POST",
             body: chunk,
           });
@@ -136,9 +138,9 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
                 <div key={file.id} className="border rounded-lg bg-card overflow-hidden flex flex-col">
                   <div className="h-48 bg-muted flex items-center justify-center">
                     {isImage ? (
-                      <img src={`/api/download/${file.id}`} alt={file.originalName} className="w-full h-full object-cover" />
+                      <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} alt={file.originalName} className="w-full h-full object-cover" />
                     ) : isVideo ? (
-                      <video src={`/api/download/${file.id}`} controls className="w-full h-full object-cover" />
+                      <video src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} controls className="w-full h-full object-cover" />
                     ) : (
                       <FileIcon className="w-16 h-16 text-muted-foreground" />
                     )}
@@ -149,7 +151,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
                       <p className="text-sm text-muted-foreground">{(Number(file.size) / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                     <Button asChild className="mt-4 w-full gap-2">
-                      <a href={`/api/download/${file.id}`} download>
+                      <a href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} download>
                         <Download className="w-4 h-4" />
                         Download
                       </a>

@@ -8,11 +8,15 @@ export function middleware(request: NextRequest) {
   const isApiAdminRoute = request.nextUrl.pathname.startsWith("/api/admin");
 
   if (!token && (isAdminRoute || isApiAdminRoute)) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    return NextResponse.redirect(loginUrl);
   }
 
   if (token && isAuthPage) {
-    return NextResponse.redirect(new URL("/admin", request.url));
+    const adminUrl = request.nextUrl.clone();
+    adminUrl.pathname = "/admin";
+    return NextResponse.redirect(adminUrl);
   }
 
   return NextResponse.next();

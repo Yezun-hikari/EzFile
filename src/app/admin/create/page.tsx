@@ -39,7 +39,8 @@ export default function CreateLinkPage() {
 
     try {
       // 1. Create Link
-      const linkRes = await fetch("/api/links", {
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const linkRes = await fetch(`${basePath}/api/links`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,7 +69,7 @@ export default function CreateLinkPage() {
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const chunk = file.slice(start, end);
             
-            await fetch(`/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
+            await fetch(`${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
               method: "POST",
               body: chunk,
             });

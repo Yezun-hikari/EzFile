@@ -4,6 +4,8 @@ import { formatDistanceToNow } from "date-fns";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminDashboard() {
   const links = await prisma.link.findMany({
     orderBy: { createdAt: "desc" },
