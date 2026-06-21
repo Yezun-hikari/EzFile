@@ -1,4 +1,4 @@
-type TransferType = 'UPLOAD' | 'DOWNLOAD';
+export type TransferType = 'UPLOAD' | 'DOWNLOAD';
 
 export interface TransferInfo {
   id: string;

@@ -61,7 +61,7 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       const fileStream = fs.createReadStream(filePath, { start, end });
       const pipedStream = fileStream.pipe(progressStream);
       
-      const res = new NextResponse(pipedStream as any, {
+      const res = new NextResponse(pipedStream as unknown as ReadableStream, {
         status: 206,
         headers: {
           "Content-Range": `bytes ${start}-${end}/${totalSize}`,
