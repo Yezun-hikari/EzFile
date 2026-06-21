@@ -11,12 +11,12 @@ WORKDIR /app
 # Install all dependencies
 FROM builder-base AS deps
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install
 
 # Install only production dependencies
 FROM builder-base AS prod-deps
 COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Builder
 FROM builder-base AS builder
