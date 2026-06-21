@@ -146,7 +146,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
                       <p className="font-medium truncate" title={file.originalName}>{file.originalName}</p>
-                      <p className="text-sm text-muted-foreground">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      <p className="text-sm text-muted-foreground">{(Number(file.size) / 1024 / 1024).toFixed(2)} MB</p>
                     </div>
                     <Button asChild className="mt-4 w-full gap-2">
                       <a href={`/api/download/${file.id}`} download>

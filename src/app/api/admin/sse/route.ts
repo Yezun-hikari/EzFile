@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { transferManager, TransferInfo } from "@/lib/transferManager";
+import { transferManager } from "@/lib/transferManager";
+import type { TransferInfo } from "@/lib/transferManager";
 
 export const dynamic = 'force-dynamic';
 

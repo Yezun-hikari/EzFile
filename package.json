@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "worker:build": "tsc src/worker.ts --outDir dist --esModuleInterop --skipLibCheck --moduleResolution node --target es2018 --module commonjs",
+    "worker:build": "tsc src/worker.ts --outDir dist --rootDir src --esModuleInterop --skipLibCheck --moduleResolution node --target es2018 --module commonjs",
     "worker": "node dist/worker.js"
   },
   "dependencies": {
