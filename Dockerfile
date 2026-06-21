@@ -27,7 +27,7 @@ ARG DATABASE_URL="file:/tmp/dev.db"
 ENV DATABASE_URL=${DATABASE_URL}
 RUN npx prisma generate
 RUN npx prisma db push
-ARG URL_BASE_PATH
+ARG URL_BASE_PATH="/__NEXT_BASE_PATH_PLACEHOLDER__"
 ENV URL_BASE_PATH=$URL_BASE_PATH
 RUN npm run build
 RUN npm run worker:build
