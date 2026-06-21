@@ -48,10 +48,20 @@ COPY --from=builder /app/package.json ./package.json
 
 # Copy production dependencies
 COPY --from=prod-deps /app/node_modules ./node_modules
+
 # Ensure generated prisma client is copied
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+
+# Clean up unnecessary prisma engines to save space (keep only linux-musl for alpine)
+RUN rm -rf /app/node_modules/@prisma/engines/*windows* \
+    && rm -rf /app/node_modules/@prisma/engines/*darwin* \
+    && rm -rf /app/node_modules/@prisma/engines/*debian* \
+    && rm -rf /app/node_modules/.prisma/client/*windows* \
+    && rm -rf /app/node_modules/.prisma/client/*darwin* \
+    && rm -rf /app/node_modules/.prisma/client/*debian* \
+    && rm -rf /app/node_modules/.prisma/client/*native*
 
 # Copy compiled worker script
 COPY --from=builder /app/dist/worker.js ./dist/worker.js

@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   description: "Modern self-hosted file sharing",
 };
 
+import { ToastProvider } from "@/components/ui/ToastProvider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -16,7 +18,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

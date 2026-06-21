@@ -11,6 +11,10 @@ export async function POST(req: Request) {
     // Generate a random path if none provided
     const path = urlPath || crypto.randomBytes(4).toString("hex");
 
+    if (type === "DROP_ZONE" && !password) {
+      return NextResponse.json({ error: "Password is required for Drop-Zones" }, { status: 400 });
+    }
+
     const existing = await prisma.link.findUnique({ where: { urlPath: path } });
     if (existing) {
       return NextResponse.json({ error: "URL Path already exists" }, { status: 400 });

@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import PasswordPrompt from "@/components/PasswordPrompt";
-import { Download, UploadCloud, FileIcon, ImageIcon, VideoIcon } from "lucide-react";
+import { useToast } from "@/components/ui/ToastProvider";
+import { Download, UploadCloud, FileIcon, ImageIcon, VideoIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function PublicLinkPage({ params }: { params: { urlPath: string } }) {
@@ -24,6 +25,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [password, setPassword] = useState("");
+  const { toast } = useToast();
 
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -63,6 +65,26 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
     fetchLink(pwd);
   };
 
+  const handleDeleteFile = async (fileId: string) => {
+    if (!confirm("Are you sure you want to delete this file?")) return;
+    try {
+      const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+      const res = await fetch(`${basePath}/api/files/${fileId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      if (res.ok) {
+        toast({ title: "Success", description: "File deleted successfully", type: "success" });
+        fetchLink(password);
+      } else {
+        toast({ title: "Error", description: "Failed to delete file", type: "error" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "An error occurred", type: "error" });
+    }
+  };
+
   const handleDropZoneUpload = async () => {
     if (uploadFiles.length === 0 || !linkData) return;
     setUploadProgress(0);
@@ -90,10 +112,11 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
           setUploadProgress(Math.round((totalUploaded / totalSize) * 100));
         }
       }
-      alert("Files uploaded successfully!");
+      toast({ title: "Success", description: "Files uploaded successfully!", type: "success" });
       setUploadFiles([]);
+      fetchLink(password);
     } catch (err) {
-      alert("Upload failed.");
+      toast({ title: "Error", description: "Upload failed.", type: "error" });
     }
   };
 
@@ -162,6 +185,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
             })}
           </div>
         ) : (
+          <>
           <div className="border rounded-lg bg-card p-8 text-center max-w-xl mx-auto">
             <UploadCloud className="w-16 h-16 text-primary mx-auto mb-4" />
             <h3 className="text-xl font-medium mb-4">Upload Files</h3>
@@ -202,6 +226,53 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
               {uploadProgress > 0 && uploadProgress < 100 ? "Uploading..." : "Upload"}
             </Button>
           </div>
+          
+          {/* Drop-Zone Uploaded Files List */}
+          {linkData.files.length > 0 && (
+            <div className="mt-12">
+              <h3 className="text-xl font-medium mb-4">Uploaded Files</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {linkData.files.map((file) => {
+                  const isImage = file.originalName.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                  const isVideo = file.originalName.match(/\.(mp4|webm|ogg)$/i);
+
+                  return (
+                    <div key={file.id} className="border rounded-lg bg-card overflow-hidden flex flex-col relative group">
+                      <button 
+                        onClick={() => handleDeleteFile(file.id)}
+                        className="absolute top-2 right-2 p-1 bg-background/80 hover:bg-destructive hover:text-destructive-foreground rounded-md opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        title="Delete file"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                      <div className="h-32 bg-muted flex items-center justify-center relative">
+                        {isImage ? (
+                          <img src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} alt={file.originalName} className="w-full h-full object-cover" />
+                        ) : isVideo ? (
+                          <video src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <FileIcon className="w-12 h-12 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="p-3 flex-1 flex flex-col justify-between">
+                        <div>
+                          <p className="font-medium text-sm truncate" title={file.originalName}>{file.originalName}</p>
+                          <p className="text-xs text-muted-foreground">{(Number(file.size) / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                        <Button asChild variant="outline" size="sm" className="mt-3 w-full gap-2">
+                          <a href={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/api/download/${file.id}`} download>
+                            <Download className="w-3 h-3" />
+                            Download
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          </>
         )}
       </div>
     </div>

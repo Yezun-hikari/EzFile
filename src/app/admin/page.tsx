@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { formatDistanceToNow } from "date-fns";
 import { PlusCircle } from "lucide-react";
 import Link from "next/link";
+import { AdminLinkActions } from "@/components/AdminLinkActions";
+import { CopyUrl } from "@/components/CopyUrl";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,7 @@ export default async function AdminDashboard() {
             ) : (
               links.map((link) => (
                 <tr key={link.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="px-6 py-4 font-medium text-primary">/{link.urlPath}</td>
+                  <td className="px-6 py-4 font-medium"><CopyUrl urlPath={link.urlPath} /></td>
                   <td className="px-6 py-4">{link.type}</td>
                   <td className="px-6 py-4">{link._count.files}</td>
                   <td className="px-6 py-4">
@@ -73,15 +75,7 @@ export default async function AdminDashboard() {
                     {formatDistanceToNow(new Date(link.createdAt), { addSuffix: true })}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    {link.status === "EXPIRED" ? (
-                      <Button variant="outline" size="sm" className="text-primary border-primary hover:bg-primary hover:text-primary-foreground">
-                        Reactivate
-                      </Button>
-                    ) : (
-                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
-                        Expire
-                      </Button>
-                    )}
+                    <AdminLinkActions linkId={link.id} status={link.status} />
                   </td>
                 </tr>
               ))

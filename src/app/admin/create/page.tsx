@@ -38,6 +38,12 @@ export default function CreateLinkPage() {
     setProgress(0);
 
     try {
+      if (type === "DROP_ZONE" && !password) {
+        alert("A password is required for Drop-Zones.");
+        setUploading(false);
+        return;
+      }
+
       // 1. Create Link
       const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
       const linkRes = await fetch(`${basePath}/api/links`, {
