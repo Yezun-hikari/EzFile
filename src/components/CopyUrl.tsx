@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
 
-export function CopyUrl({ urlPath }: { urlPath: string }) {
+export function CopyUrl({ domain, urlPath }: { domain?: string, urlPath: string }) {
   const [fullUrl, setFullUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
@@ -13,8 +13,18 @@ export function CopyUrl({ urlPath }: { urlPath: string }) {
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
     // Replace placeholder if it leaked through somehow (should be replaced by start.sh)
     const cleanBasePath = basePath === "/__NEXT_BASE_PATH_PLACEHOLDER__" ? "" : basePath;
-    setFullUrl(`${window.location.origin}${cleanBasePath}/${urlPath}`);
-  }, [urlPath]);
+    
+    let origin = window.location.origin;
+    if (domain) {
+      if (!domain.startsWith("http")) {
+        origin = domain.includes("localhost") || domain.includes("127.0.0.1") ? `http://${domain}` : `https://${domain}`;
+      } else {
+        origin = domain;
+      }
+    }
+    
+    setFullUrl(`${origin}${cleanBasePath}/${urlPath}`);
+  }, [urlPath, domain]);
 
   const handleCopy = () => {
     if (!fullUrl) return;

@@ -39,29 +39,30 @@ ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV DATABASE_URL="file:/app/storage/dev.db"
 
-# Copy nextjs standalone build
+# Copy Next.js standalone build which already includes traced node_modules
 COPY public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
 
-# Copy production dependencies
-COPY --from=prod-deps /app/node_modules ./node_modules
+# Copy ONLY the dependencies needed by worker.ts that Next.js might not have traced
+COPY --from=prod-deps /app/node_modules/node-cron ./node_modules/node-cron
 
 # Ensure generated prisma client is copied
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Clean up unnecessary prisma engines to save space (keep only linux-musl for alpine)
-RUN rm -rf /app/node_modules/@prisma/engines/*windows* \
-    && rm -rf /app/node_modules/@prisma/engines/*darwin* \
-    && rm -rf /app/node_modules/@prisma/engines/*debian* \
-    && rm -rf /app/node_modules/.prisma/client/*windows* \
-    && rm -rf /app/node_modules/.prisma/client/*darwin* \
-    && rm -rf /app/node_modules/.prisma/client/*debian* \
-    && rm -rf /app/node_modules/.prisma/client/*native*
+# Aggressively clean up unnecessary prisma engines to save massive space
+# We ONLY keep the linux-musl engine binaries in .prisma/client, and remove the huge @prisma/engines CLI folder completely
+RUN rm -rf /app/node_modules/@prisma/engines \
+    && rm -f /app/node_modules/.prisma/client/*windows* \
+    && rm -f /app/node_modules/.prisma/client/*darwin* \
+    && rm -f /app/node_modules/.prisma/client/*debian* \
+    && rm -f /app/node_modules/.prisma/client/*native* \
+    && rm -f /app/node_modules/.prisma/client/*rhel* \
+    && rm -f /app/node_modules/.prisma/client/*centos* \
+    && rm -f /app/node_modules/.prisma/client/*.exe
 
 # Copy compiled worker script
 COPY --from=builder /app/dist/worker.js ./dist/worker.js

@@ -14,6 +14,8 @@ export default async function AdminDashboard() {
     include: { _count: { select: { files: true } } },
   });
 
+  const domain = process.env.DOMAIN || "";
+
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-8">
@@ -53,7 +55,7 @@ export default async function AdminDashboard() {
             ) : (
               links.map((link) => (
                 <tr key={link.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="px-6 py-4 font-medium"><CopyUrl urlPath={link.urlPath} /></td>
+                  <td className="px-6 py-4 font-medium"><CopyUrl domain={domain} urlPath={link.urlPath} /></td>
                   <td className="px-6 py-4">{link.type}</td>
                   <td className="px-6 py-4">{link._count.files}</td>
                   <td className="px-6 py-4">
