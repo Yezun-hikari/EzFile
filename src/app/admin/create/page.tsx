@@ -103,7 +103,7 @@ export default function CreateLinkPage() {
         const uploadStartTime = Date.now();
 
         for (const file of files) {
-          const CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks for optimal throughput
+          const CHUNK_SIZE = file.size > 100 * 1024 * 1024 ? 16 * 1024 * 1024 : 8 * 1024 * 1024; // 16MB chunks for massive files
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
           
           for (let i = 0; i < totalChunks; i++) {
@@ -120,15 +120,14 @@ export default function CreateLinkPage() {
               
               const timeDiff = (now - lastTime) / 1000;
               if (timeDiff >= 0.25) {
-                const bytesDiff = loaded - lastLoaded;
-                const speedMbps = (bytesDiff / timeDiff) / (1024 * 1024);
-                
                 const totalTimeSec = (now - uploadStartTime) / 1000;
                 const avgBps = totalTimeSec > 0 ? currentUploaded / totalTimeSec : 0;
+                const actualMbps = (avgBps / (1024 * 1024)).toFixed(1);
+                
                 const remSec = avgBps > 0 ? (totalSize - currentUploaded) / avgBps : 0;
                 const etaStr = remSec > 0 && currentUploaded < totalSize ? ` - ETA ~${formatEta(remSec)}` : "";
                 
-                setUploadSpeed(`${speedMbps.toFixed(1)} MB/s${etaStr}`);
+                setUploadSpeed(`${actualMbps} MB/s${etaStr}`);
                 lastLoaded = loaded;
                 lastTime = now;
               }
