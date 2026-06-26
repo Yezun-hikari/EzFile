@@ -31,6 +31,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
 
   // Bulk actions state
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -150,7 +151,8 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
   };
 
   const handleDropZoneUpload = async () => {
-    if (uploadFiles.length === 0 || !linkData) return;
+    if (uploadFiles.length === 0 || !linkData || isUploading) return;
+    setIsUploading(true);
     setUploadProgress(0);
     setUploadSpeed("");
 
@@ -217,6 +219,8 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
       toast({ title: "Error", description: "Upload failed.", type: "error" });
       setUploadProgress(0);
       setUploadSpeed("");
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -402,7 +406,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
               </div>
             )}
             
-            {uploadProgress > 0 && uploadProgress < 100 && (
+            {isUploading && (
               <div className="mb-6">
                 <div className="flex justify-between text-sm text-primary mb-2">
                   <span className="font-medium">Uploading... {uploadSpeed && `(${uploadSpeed})`}</span>
@@ -419,10 +423,10 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
 
             <Button 
               onClick={handleDropZoneUpload} 
-              disabled={uploadFiles.length === 0 || (uploadProgress > 0 && uploadProgress < 100)}
+              disabled={uploadFiles.length === 0 || isUploading}
               className="w-full h-12 text-md"
             >
-              {uploadProgress > 0 && uploadProgress < 100 ? "Uploading..." : "Upload Files"}
+              {isUploading ? "Uploading..." : "Upload Files"}
             </Button>
           </div>
           
