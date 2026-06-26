@@ -8,7 +8,14 @@ export default function TransfersPage() {
   const [transfers, setTransfers] = useState<TransferInfo[]>([]);
 
   useEffect(() => {
-    const eventSource = new EventSource("/api/admin/sse");
+    let bp = process.env.NEXT_PUBLIC_BASE_PATH || "";
+    if (bp === "/__NEXT_BASE_PATH_PLACEHOLDER__") bp = "";
+    if (!bp && typeof window !== "undefined") {
+      const pathname = window.location.pathname;
+      const adminIdx = pathname.indexOf("/admin");
+      if (adminIdx > 0) bp = pathname.slice(0, adminIdx);
+    }
+    const eventSource = new EventSource(`${bp}/api/admin/sse`);
 
     eventSource.onmessage = (event) => {
       try {

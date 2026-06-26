@@ -15,6 +15,7 @@ export default async function AdminDashboard() {
   });
 
   const domain = process.env.DOMAIN || "";
+  const urlBasePath = process.env.URL_BASE_PATH || "";
 
   return (
     <div className="p-8">
@@ -55,7 +56,7 @@ export default async function AdminDashboard() {
             ) : (
               links.map((link) => (
                 <tr key={link.id} className="border-b last:border-0 hover:bg-muted/50">
-                  <td className="px-6 py-4 font-medium"><CopyUrl domain={domain} urlPath={link.urlPath} /></td>
+                  <td className="px-6 py-4 font-medium"><CopyUrl domain={domain} urlBasePath={urlBasePath} urlPath={link.urlPath} /></td>
                   <td className="px-6 py-4">{link.type}</td>
                   <td className="px-6 py-4">{link._count.files}</td>
                   <td className="px-6 py-4">

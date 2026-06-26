@@ -101,7 +101,7 @@ class TransferManager {
   }
 }
 
-// Global instance to prevent re-instantiation in development
 const globalForTransfers = globalThis as unknown as { transferManager: TransferManager | undefined };
 export const transferManager = globalForTransfers.transferManager ?? new TransferManager();
-if (process.env.NODE_ENV !== "production") globalForTransfers.transferManager = transferManager;
+globalForTransfers.transferManager = transferManager;
+

@@ -15,6 +15,7 @@ export default function CreateLinkPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState("");
 
   const handleGeneratePassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
@@ -36,6 +37,7 @@ export default function CreateLinkPage() {
     e.preventDefault();
     setUploading(true);
     setProgress(0);
+    setUploadSpeed("");
 
     try {
       if (type === "DROP_ZONE" && !password) {
@@ -65,6 +67,8 @@ export default function CreateLinkPage() {
       if (type === "SHARE" && files.length > 0) {
         let totalUploaded = 0;
         const totalSize = files.reduce((acc, f) => acc + f.size, 0);
+        let lastLoaded = 0;
+        let lastTime = Date.now();
 
         for (const file of files) {
           const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
@@ -75,13 +79,41 @@ export default function CreateLinkPage() {
             const end = Math.min(start + CHUNK_SIZE, file.size);
             const chunk = file.slice(start, end);
             
-            await fetch(`${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`, {
-              method: "POST",
-              body: chunk,
-            });
+            const url = `${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`;
 
-            totalUploaded += chunk.size;
-            setProgress(Math.round((totalUploaded / totalSize) * 100));
+            await new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                  const now = Date.now();
+                  const currentUploaded = totalUploaded + e.loaded;
+                  setProgress(Math.round((currentUploaded / totalSize) * 100));
+                  
+                  const timeDiff = (now - lastTime) / 1000;
+                  if (timeDiff >= 0.25) {
+                    const bytesDiff = e.loaded - lastLoaded;
+                    const speedMbps = (bytesDiff / timeDiff) / (1024 * 1024);
+                    setUploadSpeed(`${speedMbps.toFixed(1)} MB/s`);
+                    lastLoaded = e.loaded;
+                    lastTime = now;
+                  }
+                }
+              };
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  totalUploaded += chunk.size;
+                  setProgress(Math.round((totalUploaded / totalSize) * 100));
+                  lastLoaded = 0;
+                  lastTime = Date.now();
+                  resolve(xhr.response);
+                } else {
+                  reject(xhr.statusText || `HTTP ${xhr.status}`);
+                }
+              };
+              xhr.onerror = () => reject("Network Error");
+              xhr.open("POST", url);
+              xhr.send(chunk);
+            });
           }
         }
       }
@@ -92,6 +124,8 @@ export default function CreateLinkPage() {
       alert("Error creating link");
     } finally {
       setUploading(false);
+      setProgress(0);
+      setUploadSpeed("");
     }
   };
 
@@ -191,7 +225,7 @@ export default function CreateLinkPage() {
         {uploading && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm text-primary">
-              <span>Uploading...</span>
+              <span>Uploading... {uploadSpeed && `(${uploadSpeed})`}</span>
               <span>{progress}%</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">

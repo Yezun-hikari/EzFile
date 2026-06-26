@@ -4,15 +4,24 @@ import { useEffect, useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { useToast } from "@/components/ui/ToastProvider";
 
-export function CopyUrl({ domain, urlPath }: { domain?: string, urlPath: string }) {
+export function CopyUrl({ domain, urlBasePath, urlPath }: { domain?: string, urlBasePath?: string, urlPath: string }) {
   const [fullUrl, setFullUrl] = useState("");
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-    // Replace placeholder if it leaked through somehow (should be replaced by start.sh)
-    const cleanBasePath = basePath === "/__NEXT_BASE_PATH_PLACEHOLDER__" ? "" : basePath;
+    let bp = urlBasePath !== undefined ? urlBasePath : (process.env.NEXT_PUBLIC_BASE_PATH || "");
+    if (bp === "/__NEXT_BASE_PATH_PLACEHOLDER__") bp = "";
+    
+    // Fallback: detect basePath from pathname if we are inside /admin
+    if (!bp && typeof window !== "undefined") {
+      const pathname = window.location.pathname;
+      const adminIdx = pathname.indexOf("/admin");
+      if (adminIdx > 0) bp = pathname.slice(0, adminIdx);
+    }
+
+    if (bp && !bp.startsWith("/")) bp = "/" + bp;
+    if (bp && bp.endsWith("/")) bp = bp.slice(0, -1);
     
     let origin = window.location.origin;
     if (domain) {
@@ -22,9 +31,10 @@ export function CopyUrl({ domain, urlPath }: { domain?: string, urlPath: string 
         origin = domain;
       }
     }
+    origin = origin.replace(/\/$/, "");
     
-    setFullUrl(`${origin}${cleanBasePath}/${urlPath}`);
-  }, [urlPath, domain]);
+    setFullUrl(`${origin}${bp}/${urlPath}`);
+  }, [urlPath, domain, urlBasePath]);
 
   const handleCopy = () => {
     if (!fullUrl) return;

@@ -30,6 +30,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
 
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState("");
 
   // Bulk actions state
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -151,10 +152,14 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
   const handleDropZoneUpload = async () => {
     if (uploadFiles.length === 0 || !linkData) return;
     setUploadProgress(0);
+    setUploadSpeed("");
 
     let totalUploaded = 0;
     const totalSize = uploadFiles.reduce((acc, f) => acc + f.size, 0);
     const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+
+    let lastLoaded = 0;
+    let lastTime = Date.now();
 
     try {
       for (const file of uploadFiles) {
@@ -172,20 +177,32 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
             const xhr = new XMLHttpRequest();
             xhr.upload.onprogress = (e) => {
               if (e.lengthComputable) {
+                const now = Date.now();
                 const currentUploaded = totalUploaded + e.loaded;
                 setUploadProgress(Math.round((currentUploaded / totalSize) * 100));
+                
+                const timeDiff = (now - lastTime) / 1000;
+                if (timeDiff >= 0.25) {
+                  const bytesDiff = e.loaded - lastLoaded;
+                  const speedMbps = (bytesDiff / timeDiff) / (1024 * 1024);
+                  setUploadSpeed(`${speedMbps.toFixed(1)} MB/s`);
+                  lastLoaded = e.loaded;
+                  lastTime = now;
+                }
               }
             };
             xhr.onload = () => {
               if (xhr.status >= 200 && xhr.status < 300) {
                 totalUploaded += chunk.size;
                 setUploadProgress(Math.round((totalUploaded / totalSize) * 100));
+                lastLoaded = 0;
+                lastTime = Date.now();
                 resolve(xhr.response);
               } else {
-                reject(xhr.statusText);
+                reject(xhr.statusText || `HTTP ${xhr.status}`);
               }
             };
-            xhr.onerror = () => reject(xhr.statusText);
+            xhr.onerror = () => reject(xhr.statusText || "Network Error");
             xhr.open("POST", url);
             xhr.send(chunk);
           });
@@ -193,9 +210,13 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
       }
       toast({ title: "Success", description: "Files uploaded successfully!", type: "success" });
       setUploadFiles([]);
+      setUploadProgress(0);
+      setUploadSpeed("");
       fetchLink(password);
     } catch (err) {
       toast({ title: "Error", description: "Upload failed.", type: "error" });
+      setUploadProgress(0);
+      setUploadSpeed("");
     }
   };
 
@@ -384,7 +405,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
             {uploadProgress > 0 && uploadProgress < 100 && (
               <div className="mb-6">
                 <div className="flex justify-between text-sm text-primary mb-2">
-                  <span className="font-medium">Uploading...</span>
+                  <span className="font-medium">Uploading... {uploadSpeed && `(${uploadSpeed})`}</span>
                   <span className="font-medium">{uploadProgress}%</span>
                 </div>
                 <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
