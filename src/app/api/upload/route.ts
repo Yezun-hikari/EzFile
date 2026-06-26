@@ -14,13 +14,19 @@ export async function POST(req: Request) {
     const chunkIndex = parseInt(url.searchParams.get("chunkIndex") || "0");
     const totalChunks = parseInt(url.searchParams.get("totalChunks") || "1");
     const totalSize = parseInt(url.searchParams.get("totalSize") || "0");
+    const startOffset = parseInt(url.searchParams.get("startOffset") || "0");
     
     if (!linkId || !filename) {
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
     }
 
     const linkDir = path.join(BASE_PATH, linkId);
-    if (chunkIndex === 0 || !fs.existsSync(linkDir)) {
+    const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const filePath = path.join(linkDir, safeFilename);
+    const trackerDir = path.join(linkDir, `.tracker_${safeFilename}`);
+
+    // Chunk 0: initialize structure and clean old files
+    if (chunkIndex === 0) {
       const link = await prisma.link.findUnique({ where: { id: linkId } });
       if (!link) {
         return NextResponse.json({ error: "Link not found" }, { status: 404 });
@@ -28,35 +34,45 @@ export async function POST(req: Request) {
       if (!fs.existsSync(linkDir)) {
         fs.mkdirSync(linkDir, { recursive: true });
       }
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      if (fs.existsSync(trackerDir)) {
+        fs.rmSync(trackerDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(trackerDir, { recursive: true });
+      
+      const transferId = `upload-${linkId}-${safeFilename}`;
+      transferManager.startTransfer(transferId, filename, "UPLOAD", totalSize);
+    } else if (!fs.existsSync(linkDir)) {
+      return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
-    const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-    const filePath = path.join(linkDir, safeFilename);
+    if (!fs.existsSync(trackerDir)) {
+      fs.mkdirSync(trackerDir, { recursive: true });
+    }
 
-    // Read chunk from request body
+    // Read chunk buffer
     const arrayBuffer = await req.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Append chunk to file
-    if (chunkIndex === 0 && fs.existsSync(filePath)) {
-      // Start fresh if it's the first chunk
-      fs.unlinkSync(filePath);
-    }
-    
-    // TransferManager logic
+    // Positional write to allow out-of-order concurrent writes
+    const fd = fs.openSync(filePath, fs.existsSync(filePath) ? "r+" : "w+");
+    fs.writeSync(fd, buffer, 0, buffer.length, startOffset);
+    fs.closeSync(fd);
+
+    // Mark chunk as completed
+    const markerPath = path.join(trackerDir, `done_${chunkIndex}`);
+    fs.writeFileSync(markerPath, "");
+
+    const doneCount = fs.readdirSync(trackerDir).length;
     const transferId = `upload-${linkId}-${safeFilename}`;
-    if (chunkIndex === 0) {
-      transferManager.startTransfer(transferId, filename, "UPLOAD", totalSize);
-    }
+    const approxBytes = Math.min(doneCount * buffer.length, totalSize);
+    transferManager.updateTransfer(transferId, approxBytes);
 
-    fs.appendFileSync(filePath, buffer);
-
-    // Update progress
-    const currentSize = fs.statSync(filePath).size;
-    transferManager.updateTransfer(transferId, currentSize);
-
-    if (chunkIndex === totalChunks - 1) {
-      // Last chunk, create File record in DB
+    if (doneCount === totalChunks) {
+      // All chunks completed
+      fs.rmSync(trackerDir, { recursive: true, force: true });
       const stats = fs.statSync(filePath);
       
       await prisma.file.create({
@@ -65,7 +81,7 @@ export async function POST(req: Request) {
           originalName: filename,
           storagePath: `${linkId}/${safeFilename}`,
           size: BigInt(stats.size),
-          mimeType: "application/octet-stream", // Could be inferred
+          mimeType: "application/octet-stream",
         },
       });
 
@@ -80,8 +96,8 @@ export async function POST(req: Request) {
     const linkId = url.searchParams.get("linkId");
     const filename = url.searchParams.get("filename");
     if (linkId && filename) {
-        const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-        transferManager.failTransfer(`upload-${linkId}-${safeFilename}`);
+      const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+      transferManager.failTransfer(`upload-${linkId}-${safeFilename}`);
     }
     return NextResponse.json({ error: "Upload failed" }, { status: 500 });
   }

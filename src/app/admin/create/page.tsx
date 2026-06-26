@@ -98,46 +98,76 @@ export default function CreateLinkPage() {
       if (type === "SHARE" && files.length > 0) {
         let totalUploaded = 0;
         const totalSize = files.reduce((acc, f) => acc + f.size, 0);
-        let lastLoaded = 0;
         let lastTime = Date.now();
         const uploadStartTime = Date.now();
 
         for (const file of files) {
-          const CHUNK_SIZE = file.size > 100 * 1024 * 1024 ? 16 * 1024 * 1024 : 8 * 1024 * 1024; // 16MB chunks for massive files
+          const CHUNK_SIZE = file.size > 100 * 1024 * 1024 ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-          
-          for (let i = 0; i < totalChunks; i++) {
-            const start = i * CHUNK_SIZE;
-            const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunkLoaded = new Array(totalChunks).fill(0);
+
+          const updateOverallProgress = () => {
+            const fileUploaded = chunkLoaded.reduce((a, b) => a + b, 0);
+            const currentUploaded = totalUploaded + fileUploaded;
+            setProgress(Math.round((currentUploaded / totalSize) * 100));
+
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000;
+            if (timeDiff >= 0.25 || currentUploaded === totalSize) {
+              const totalTimeSec = (now - uploadStartTime) / 1000;
+              const avgBps = totalTimeSec > 0 ? currentUploaded / totalTimeSec : 0;
+              const actualMbps = (avgBps / (1024 * 1024)).toFixed(1);
+
+              const remSec = avgBps > 0 ? (totalSize - currentUploaded) / avgBps : 0;
+              const etaStr = remSec > 0 && currentUploaded < totalSize ? ` - ETA ~${formatEta(remSec)}` : "";
+
+              setUploadSpeed(`${actualMbps} MB/s${etaStr}`);
+              lastTime = now;
+            }
+          };
+
+          // Chunk 0: upload sequentially first to initialize storage & clean old files
+          if (totalChunks > 0) {
+            const start = 0;
+            const end = Math.min(CHUNK_SIZE, file.size);
             const chunk = file.slice(start, end);
-            
-            const url = `${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`;
+            const url = `${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=0&totalChunks=${totalChunks}&totalSize=${file.size}&startOffset=0`;
 
             await uploadChunkWithRetry(url, chunk, (loaded) => {
-              const now = Date.now();
-              const currentUploaded = totalUploaded + loaded;
-              setProgress(Math.round((currentUploaded / totalSize) * 100));
-              
-              const timeDiff = (now - lastTime) / 1000;
-              if (timeDiff >= 0.25) {
-                const totalTimeSec = (now - uploadStartTime) / 1000;
-                const avgBps = totalTimeSec > 0 ? currentUploaded / totalTimeSec : 0;
-                const actualMbps = (avgBps / (1024 * 1024)).toFixed(1);
-                
-                const remSec = avgBps > 0 ? (totalSize - currentUploaded) / avgBps : 0;
-                const etaStr = remSec > 0 && currentUploaded < totalSize ? ` - ETA ~${formatEta(remSec)}` : "";
-                
-                setUploadSpeed(`${actualMbps} MB/s${etaStr}`);
-                lastLoaded = loaded;
-                lastTime = now;
+              chunkLoaded[0] = loaded;
+              updateOverallProgress();
+            });
+            chunkLoaded[0] = chunk.size;
+            updateOverallProgress();
+          }
+
+          // Chunks 1..N: upload concurrently with CONCURRENCY = 4
+          if (totalChunks > 1) {
+            const queue: number[] = [];
+            for (let i = 1; i < totalChunks; i++) queue.push(i);
+
+            const CONCURRENCY = 4;
+            const workers = new Array(Math.min(CONCURRENCY, queue.length)).fill(0).map(async () => {
+              while (queue.length > 0) {
+                const i = queue.shift()!;
+                const start = i * CHUNK_SIZE;
+                const end = Math.min(start + CHUNK_SIZE, file.size);
+                const chunk = file.slice(start, end);
+                const url = `${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}&startOffset=${start}`;
+
+                await uploadChunkWithRetry(url, chunk, (loaded) => {
+                  chunkLoaded[i] = loaded;
+                  updateOverallProgress();
+                });
+                chunkLoaded[i] = chunk.size;
+                updateOverallProgress();
               }
             });
-            
-            totalUploaded += chunk.size;
-            setProgress(Math.round((totalUploaded / totalSize) * 100));
-            lastLoaded = 0;
-            lastTime = Date.now();
+
+            await Promise.all(workers);
           }
+
+          totalUploaded += file.size;
         }
       }
 
