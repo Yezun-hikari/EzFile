@@ -33,6 +33,37 @@ export default function CreateLinkPage() {
     }
   };
 
+  const formatEta = (seconds: number) => {
+    if (!isFinite(seconds) || seconds <= 0) return "";
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m ${s}s`;
+  };
+
+  const uploadChunkWithRetry = async (url: string, chunk: Blob, onProgress: (loaded: number) => void, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) onProgress(e.loaded);
+          };
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
+            else reject(new Error(`HTTP ${xhr.status}`));
+          };
+          xhr.onerror = () => reject(new Error("Network Error"));
+          xhr.open("POST", url);
+          xhr.send(chunk);
+        });
+      } catch (err) {
+        if (attempt === maxRetries) throw err;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setUploading(true);
@@ -69,9 +100,10 @@ export default function CreateLinkPage() {
         const totalSize = files.reduce((acc, f) => acc + f.size, 0);
         let lastLoaded = 0;
         let lastTime = Date.now();
+        const uploadStartTime = Date.now();
 
         for (const file of files) {
-          const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+          const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for proxy/cloudflare stability
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
           
           for (let i = 0; i < totalChunks; i++) {
@@ -81,39 +113,31 @@ export default function CreateLinkPage() {
             
             const url = `${basePath}/api/upload?linkId=${link.id}&filename=${encodeURIComponent(file.name)}&chunkIndex=${i}&totalChunks=${totalChunks}&totalSize=${file.size}`;
 
-            await new Promise((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) {
-                  const now = Date.now();
-                  const currentUploaded = totalUploaded + e.loaded;
-                  setProgress(Math.round((currentUploaded / totalSize) * 100));
-                  
-                  const timeDiff = (now - lastTime) / 1000;
-                  if (timeDiff >= 0.25) {
-                    const bytesDiff = e.loaded - lastLoaded;
-                    const speedMbps = (bytesDiff / timeDiff) / (1024 * 1024);
-                    setUploadSpeed(`${speedMbps.toFixed(1)} MB/s`);
-                    lastLoaded = e.loaded;
-                    lastTime = now;
-                  }
-                }
-              };
-              xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  totalUploaded += chunk.size;
-                  setProgress(Math.round((totalUploaded / totalSize) * 100));
-                  lastLoaded = 0;
-                  lastTime = Date.now();
-                  resolve(xhr.response);
-                } else {
-                  reject(xhr.statusText || `HTTP ${xhr.status}`);
-                }
-              };
-              xhr.onerror = () => reject("Network Error");
-              xhr.open("POST", url);
-              xhr.send(chunk);
+            await uploadChunkWithRetry(url, chunk, (loaded) => {
+              const now = Date.now();
+              const currentUploaded = totalUploaded + loaded;
+              setProgress(Math.round((currentUploaded / totalSize) * 100));
+              
+              const timeDiff = (now - lastTime) / 1000;
+              if (timeDiff >= 0.25) {
+                const bytesDiff = loaded - lastLoaded;
+                const speedMbps = (bytesDiff / timeDiff) / (1024 * 1024);
+                
+                const totalTimeSec = (now - uploadStartTime) / 1000;
+                const avgBps = totalTimeSec > 0 ? currentUploaded / totalTimeSec : 0;
+                const remSec = avgBps > 0 ? (totalSize - currentUploaded) / avgBps : 0;
+                const etaStr = remSec > 0 && currentUploaded < totalSize ? ` - ETA ~${formatEta(remSec)}` : "";
+                
+                setUploadSpeed(`${speedMbps.toFixed(1)} MB/s${etaStr}`);
+                lastLoaded = loaded;
+                lastTime = now;
+              }
             });
+            
+            totalUploaded += chunk.size;
+            setProgress(Math.round((totalUploaded / totalSize) * 100));
+            lastLoaded = 0;
+            lastTime = Date.now();
           }
         }
       }
