@@ -103,7 +103,7 @@ export default function CreateLinkPage() {
         const uploadStartTime = Date.now();
 
         for (const file of files) {
-          const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for proxy/cloudflare stability
+          const CHUNK_SIZE = 8 * 1024 * 1024; // 8MB chunks for optimal throughput
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
           
           for (let i = 0; i < totalChunks; i++) {

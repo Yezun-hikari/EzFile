@@ -19,18 +19,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
     }
 
-    const link = await prisma.link.findUnique({ where: { id: linkId } });
-    if (!link) {
-      return NextResponse.json({ error: "Link not found" }, { status: 404 });
-    }
-
-    // Ensure storage directory exists
-    if (!fs.existsSync(BASE_PATH)) {
-      fs.mkdirSync(BASE_PATH, { recursive: true });
-    }
-    const linkDir = path.join(BASE_PATH, link.id);
-    if (!fs.existsSync(linkDir)) {
-      fs.mkdirSync(linkDir, { recursive: true });
+    const linkDir = path.join(BASE_PATH, linkId);
+    if (chunkIndex === 0 || !fs.existsSync(linkDir)) {
+      const link = await prisma.link.findUnique({ where: { id: linkId } });
+      if (!link) {
+        return NextResponse.json({ error: "Link not found" }, { status: 404 });
+      }
+      if (!fs.existsSync(linkDir)) {
+        fs.mkdirSync(linkDir, { recursive: true });
+      }
     }
 
     const safeFilename = filename.replace(/[^a-zA-Z0-9.\-_]/g, "_");
@@ -64,9 +61,9 @@ export async function POST(req: Request) {
       
       await prisma.file.create({
         data: {
-          linkId: link.id,
+          linkId: linkId,
           originalName: filename,
-          storagePath: `${link.id}/${safeFilename}`,
+          storagePath: `${linkId}/${safeFilename}`,
           size: BigInt(stats.size),
           mimeType: "application/octet-stream", // Could be inferred
         },
