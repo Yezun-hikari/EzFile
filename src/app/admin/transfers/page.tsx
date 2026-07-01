@@ -7,6 +7,15 @@ import type { TransferInfo } from "@/lib/transferManager";
 export default function TransfersPage() {
   const [transfers, setTransfers] = useState<TransferInfo[]>([]);
 
+  const formatEta = (seconds?: number) => {
+    if (seconds === undefined || seconds < 0) return "";
+    if (seconds === 0) return "Almost done";
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    return `${m}m ${s}s`;
+  };
+
   useEffect(() => {
     let bp = process.env.NEXT_PUBLIC_BASE_PATH || "";
     if (bp === "/__NEXT_BASE_PATH_PLACEHOLDER__") bp = "";
@@ -51,7 +60,9 @@ export default function TransfersPage() {
             <div key={idx} className="p-4 border rounded-md bg-card flex items-center justify-between">
               <div>
                 <p className="font-medium">{t.filename}</p>
-                <p className="text-sm text-muted-foreground">{t.type} • {t.speed} MB/s</p>
+                <p className="text-sm text-muted-foreground">
+                  {t.type} • {t.speed} MB/s {t.etaSeconds !== undefined && t.progress < 100 ? `• ETA: ${formatEta(t.etaSeconds)}` : ""}
+                </p>
               </div>
               <div className="text-right">
                 <p className="font-bold text-primary">{t.progress}%</p>

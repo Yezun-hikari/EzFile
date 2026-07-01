@@ -194,7 +194,7 @@ export default function CreateLinkPage() {
       <h2 className="text-3xl font-bold mb-6">Create New Link</h2>
       
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex gap-4 mb-6">
+        <div className="flex flex-wrap gap-4 mb-6">
           <Button 
             type="button" 
             variant={type === "SHARE" ? "default" : "outline"}
@@ -208,6 +208,13 @@ export default function CreateLinkPage() {
             onClick={() => setType("DROP_ZONE")}
           >
             Drop-Zone (Receive)
+          </Button>
+          <Button 
+            type="button" 
+            variant={type === "FILE_TUNNEL" ? "default" : "outline"}
+            onClick={() => setType("FILE_TUNNEL")}
+          >
+            ⚡ File Tunnel (Live Stream)
           </Button>
         </div>
 
@@ -323,6 +330,13 @@ export default function CreateLinkPage() {
                 </ul>
               </div>
             )}
+          </div>
+        )}
+
+        {type === "FILE_TUNNEL" && (
+          <div className="p-4 border rounded-lg bg-primary/5 text-sm text-muted-foreground border-primary/20">
+            <p className="font-semibold text-primary mb-1">⚡ File Tunnel Modus aktiviert</p>
+            Besucher dieses Links können Dateien hochladen, die für andere Besucher sofort zum Live-Download bereitstehen – noch während der Upload läuft.
           </div>
         )}
 

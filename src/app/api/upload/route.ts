@@ -42,6 +42,25 @@ export async function POST(req: Request) {
       }
       fs.mkdirSync(trackerDir, { recursive: true });
       
+      if (link.type === "FILE_TUNNEL") {
+        await prisma.file.deleteMany({
+          where: {
+            linkId: linkId,
+            storagePath: `${linkId}/${safeFilename}`,
+          },
+        });
+        await prisma.file.create({
+          data: {
+            linkId: linkId,
+            originalName: filename,
+            storagePath: `${linkId}/${safeFilename}`,
+            size: BigInt(totalSize),
+            mimeType: "application/octet-stream",
+            isComplete: false,
+          },
+        });
+      }
+
       const transferId = `upload-${linkId}-${safeFilename}`;
       transferManager.startTransfer(transferId, filename, "UPLOAD", totalSize);
     } else if (!fs.existsSync(linkDir)) {
@@ -75,15 +94,33 @@ export async function POST(req: Request) {
       fs.rmSync(trackerDir, { recursive: true, force: true });
       const stats = fs.statSync(filePath);
       
-      await prisma.file.create({
-        data: {
+      const existingFile = await prisma.file.findFirst({
+        where: {
           linkId: linkId,
-          originalName: filename,
           storagePath: `${linkId}/${safeFilename}`,
-          size: BigInt(stats.size),
-          mimeType: "application/octet-stream",
         },
       });
+
+      if (existingFile) {
+        await prisma.file.update({
+          where: { id: existingFile.id },
+          data: {
+            size: BigInt(stats.size),
+            isComplete: true,
+          },
+        });
+      } else {
+        await prisma.file.create({
+          data: {
+            linkId: linkId,
+            originalName: filename,
+            storagePath: `${linkId}/${safeFilename}`,
+            size: BigInt(stats.size),
+            mimeType: "application/octet-stream",
+            isComplete: true,
+          },
+        });
+      }
 
       transferManager.completeTransfer(transferId);
       return NextResponse.json({ success: true, complete: true });

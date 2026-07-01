@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { transferManager } from "@/lib/transferManager";
-import { Transform } from "stream";
+import { Transform, Readable } from "stream";
 import fs from "fs";
 import path from "path";
 
@@ -19,13 +19,23 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
     }
 
     const filePath = path.join(BASE_PATH, file.storagePath);
-    if (!fs.existsSync(filePath)) {
+    if (!fs.existsSync(filePath) && file.isComplete) {
       return new NextResponse("File missing on disk", { status: 404 });
     }
 
-    const stat = fs.statSync(filePath);
-    const totalSize = stat.size;
+    const stat = fs.existsSync(filePath) ? fs.statSync(filePath) : null;
+    const totalSize = file.isComplete && stat ? stat.size : Number(file.size);
     const rangeHeader = req.headers.get("range");
+    const etag = `"${file.id}-${totalSize}"`;
+    const lastModified = stat ? stat.mtime.toUTCString() : file.createdAt.toUTCString();
+
+    const commonHeaders: Record<string, string> = {
+      "Accept-Ranges": "bytes",
+      "ETag": etag,
+      "Last-Modified": lastModified,
+      "Content-Type": file.mimeType,
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(file.originalName)}"`,
+    };
 
     const transferId = `download-${file.id}-${Date.now()}`;
     transferManager.startTransfer(transferId, file.originalName, "DOWNLOAD", totalSize);
@@ -43,43 +53,94 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       }
     });
 
-    // Handle unexpected close/error
     progressStream.on('error', () => transferManager.failTransfer(transferId));
     progressStream.on('close', () => {
       if (bytesDownloaded < totalSize) {
-        // Only fail if it closed before completing
         transferManager.failTransfer(transferId);
       }
     });
 
+    if (!file.isComplete) {
+      const CHUNK_SIZE = totalSize > 100 * 1024 * 1024 ? 16 * 1024 * 1024 : 8 * 1024 * 1024;
+      const totalChunks = Math.ceil(totalSize / CHUNK_SIZE);
+      const safeFilename = path.basename(filePath);
+      const trackerDir = path.join(path.dirname(filePath), `.tracker_${safeFilename}`);
+
+      let currentChunk = 0;
+      const liveStream = new Readable({
+        async read() {
+          while (currentChunk < totalChunks) {
+            const markerPath = path.join(trackerDir, `done_${currentChunk}`);
+            const isCompleted = fs.existsSync(markerPath);
+            const dbFile = await prisma.file.findUnique({ where: { id: file.id } });
+
+            if (isCompleted || dbFile?.isComplete) {
+              const start = currentChunk * CHUNK_SIZE;
+              const end = Math.min((currentChunk + 1) * CHUNK_SIZE - 1, totalSize - 1);
+              try {
+                const chunkBuffer = await new Promise<Buffer>((resolve, reject) => {
+                  const stream = fs.createReadStream(filePath, { start, end, highWaterMark: 1024 * 1024 });
+                  const chunks: Buffer[] = [];
+                  stream.on("data", (c) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+                  stream.on("end", () => resolve(Buffer.concat(chunks)));
+                  stream.on("error", reject);
+                });
+                currentChunk++;
+                this.push(chunkBuffer);
+                return;
+              } catch (err) {
+                // Wait briefly if file lock
+              }
+            }
+            await new Promise((r) => setTimeout(r, 250));
+          }
+          this.push(null);
+        }
+      });
+
+      const pipedStream = liveStream.pipe(progressStream);
+      return new NextResponse(Readable.toWeb(pipedStream) as unknown as ReadableStream, {
+        headers: {
+          ...commonHeaders,
+          "Content-Length": totalSize.toString(),
+        },
+      });
+    }
+
     if (rangeHeader) {
       const parts = rangeHeader.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+      const end = parts[1] && parts[1].trim() !== "" ? parseInt(parts[1], 10) : totalSize - 1;
+
+      if (isNaN(start) || start < 0 || start >= totalSize || end >= totalSize || start > end) {
+        return new NextResponse("Range Not Satisfiable", {
+          status: 416,
+          headers: {
+            "Content-Range": `bytes */${totalSize}`,
+            "Accept-Ranges": "bytes",
+          },
+        });
+      }
+
       const chunksize = (end - start) + 1;
-      
-      const fileStream = fs.createReadStream(filePath, { start, end });
+      const fileStream = fs.createReadStream(filePath, { start, end, highWaterMark: 1024 * 1024 });
       const pipedStream = fileStream.pipe(progressStream);
-      
-      const res = new NextResponse(pipedStream as unknown as ReadableStream, {
+
+      return new NextResponse(Readable.toWeb(pipedStream) as unknown as ReadableStream, {
         status: 206,
         headers: {
+          ...commonHeaders,
           "Content-Range": `bytes ${start}-${end}/${totalSize}`,
-          "Accept-Ranges": "bytes",
           "Content-Length": chunksize.toString(),
-          "Content-Type": file.mimeType,
-          "Content-Disposition": `attachment; filename="${encodeURIComponent(file.originalName)}"`,
         },
       });
-      return res;
     } else {
-      const fileStream = fs.createReadStream(filePath);
+      const fileStream = fs.createReadStream(filePath, { highWaterMark: 1024 * 1024 });
       const pipedStream = fileStream.pipe(progressStream);
-      return new NextResponse(pipedStream as unknown as ReadableStream, {
+      return new NextResponse(Readable.toWeb(pipedStream) as unknown as ReadableStream, {
         headers: {
+          ...commonHeaders,
           "Content-Length": totalSize.toString(),
-          "Content-Type": file.mimeType,
-          "Content-Disposition": `attachment; filename="${encodeURIComponent(file.originalName)}"`,
         },
       });
     }

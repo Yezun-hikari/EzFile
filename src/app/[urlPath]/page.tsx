@@ -19,6 +19,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
       originalName: string;
       mimeType: string;
       size: string;
+      isComplete?: boolean;
     }>;
   };
 
@@ -86,6 +87,24 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
     fetchLink();
   }, [params.urlPath]);
 
+  useEffect(() => {
+    if (!linkData || linkData.type !== "FILE_TUNNEL") return;
+    const interval = setInterval(async () => {
+      try {
+        const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+        const opts = password ? { method: "POST", body: JSON.stringify({ password }) } : { method: "GET" };
+        const res = await fetch(`${basePath}/api/public/links/${params.urlPath}`, opts);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.link) setLinkData(data.link);
+        }
+      } catch (e) {
+        // ignore errors on silent poll
+      }
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [linkData?.type, password, params.urlPath]);
+
   const handlePasswordSubmit = (pwd: string) => {
     setPassword(pwd);
     fetchLink(pwd);
@@ -135,30 +154,22 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
     }
   };
 
-  const handleDownloadZip = async () => {
+  const handleDownloadZip = () => {
     if (selectedFiles.size === 0) return;
     try {
       const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
-      toast({ title: "Zipping", description: "Generating zip file...", type: "success" });
+      toast({ title: "Starting Download", description: "Your zip download is starting...", type: "success" });
       
-      const res = await fetch(`${basePath}/api/download/zip`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileIds: Array.from(selectedFiles), password }),
-      });
+      const idsParam = encodeURIComponent(Array.from(selectedFiles).join(","));
+      const pwdParam = password ? `&password=${encodeURIComponent(password)}` : "";
+      const downloadUrl = `${basePath}/api/download/zip?fileIds=${idsParam}${pwdParam}`;
       
-      if (!res.ok) throw new Error();
-      
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = downloadUrl;
       a.download = "ezfile_download.zip";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      window.URL.revokeObjectURL(url);
-      
     } catch (err) {
       toast({ title: "Error", description: "Failed to download zip", type: "error" });
     }
@@ -429,7 +440,14 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
               
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div className="mb-4">
-                  <p className="font-medium text-sm truncate" title={file.originalName}>{file.originalName}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-sm truncate" title={file.originalName}>{file.originalName}</p>
+                    {file.isComplete === false && (
+                      <span className="shrink-0 text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-1.5 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                        🟢 Live Tunnel
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">{(Number(file.size) / 1024 / 1024).toFixed(2)} MB</p>
                 </div>
                 <Button asChild variant="secondary" size="sm" className="w-full gap-2">
@@ -451,7 +469,11 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
       <div className="max-w-5xl mx-auto">
         <h1 className="text-3xl font-bold text-primary mb-2">EzFile</h1>
         <p className="text-muted-foreground mb-8">
-          {isShare ? "Files shared with you" : "Drop-Zone: Send files to the owner"}
+          {isShare 
+            ? "Files shared with you" 
+            : linkData.type === "FILE_TUNNEL"
+              ? "⚡ File Tunnel: Simultanes Hochladen & Live-Stream Download"
+              : "Drop-Zone: Send files to the owner"}
         </p>
 
         {isShare ? (
@@ -558,8 +580,14 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
           
           {linkData.files.length > 0 && (
             <div className="mt-16">
-              <h3 className="text-2xl font-semibold mb-2">Uploaded Files</h3>
-              <p className="text-muted-foreground mb-4">Manage files previously uploaded to this Drop-Zone.</p>
+              <h3 className="text-2xl font-semibold mb-2">
+                {linkData.type === "FILE_TUNNEL" ? "⚡ Live Tunnel Files" : "Uploaded Files"}
+              </h3>
+              <p className="text-muted-foreground mb-4">
+                {linkData.type === "FILE_TUNNEL" 
+                  ? "Dateien stehen hier sofort während des Hochladens für andere zum Live-Download zur Verfügung."
+                  : "Manage files previously uploaded to this Drop-Zone."}
+              </p>
               {renderFilesList()}
             </div>
           )}
