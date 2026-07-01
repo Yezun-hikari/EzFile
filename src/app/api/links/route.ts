@@ -34,11 +34,25 @@ export async function POST(req: Request) {
 
     revalidatePath("/admin");
 
-    return NextResponse.json({ link });
+    return NextResponse.json({ link: serializeBigInts(link) });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to create link" }, { status: 500 });
   }
+}
+
+function serializeBigInts(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeBigInts);
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = serializeBigInts(obj[key]);
+    }
+    return res;
+  }
+  return obj;
 }
 
 export async function GET() {
@@ -47,7 +61,7 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
       include: { _count: { select: { files: true } } },
     });
-    return NextResponse.json({ links });
+    return NextResponse.json({ links: serializeBigInts(links) });
   } catch (error) {
     return NextResponse.json({ error: "Failed to fetch links" }, { status: 500 });
   }

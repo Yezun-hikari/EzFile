@@ -35,6 +35,11 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       }
     }
 
+    const linkDir = path.join(BASE_PATH, params.id);
+    if (fs.existsSync(linkDir)) {
+      fs.rmSync(linkDir, { recursive: true, force: true });
+    }
+
     await prisma.link.delete({ where: { id: params.id } });
 
     revalidatePath("/admin");

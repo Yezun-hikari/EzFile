@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "worker:build": "tsc src/worker.ts --outDir dist --rootDir src --esModuleInterop --skipLibCheck --moduleResolution node --target es2018 --module commonjs",
-    "worker": "node dist/worker.js"
+    "worker": "npm run worker:build && node dist/worker.js"
   },
   "dependencies": {
     "@prisma/client": "^5.15.0",

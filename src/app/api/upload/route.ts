@@ -37,6 +37,10 @@ export async function POST(req: Request) {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
+      const lockPath = path.join(linkDir, `.completed_${safeFilename}`);
+      if (fs.existsSync(lockPath)) {
+        fs.unlinkSync(lockPath);
+      }
       if (fs.existsSync(trackerDir)) {
         fs.rmSync(trackerDir, { recursive: true, force: true });
       }
@@ -86,12 +90,23 @@ export async function POST(req: Request) {
 
     const doneCount = fs.readdirSync(trackerDir).length;
     const transferId = `upload-${linkId}-${safeFilename}`;
-    const approxBytes = Math.min(doneCount * buffer.length, totalSize);
+    const approxBytes = totalChunks > 0 ? Math.min(Math.round((doneCount / totalChunks) * totalSize), totalSize) : totalSize;
     transferManager.updateTransfer(transferId, approxBytes);
 
     if (doneCount === totalChunks) {
+      // Atomic check-and-lock to ensure only one concurrent chunk thread finalizes the upload
+      const lockPath = path.join(linkDir, `.completed_${safeFilename}`);
+      try {
+        fs.writeFileSync(lockPath, "", { flag: "wx" });
+      } catch (err) {
+        // Another concurrent thread already acquired the completion lock
+        return NextResponse.json({ success: true, complete: true });
+      }
+
       // All chunks completed
-      fs.rmSync(trackerDir, { recursive: true, force: true });
+      if (fs.existsSync(trackerDir)) {
+        fs.rmSync(trackerDir, { recursive: true, force: true });
+      }
       const stats = fs.statSync(filePath);
       
       const existingFile = await prisma.file.findFirst({

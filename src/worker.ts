@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 
 const prisma = new PrismaClient();
-const BASE_PATH = process.env.BASE_PATH || "./storage";
+const BASE_PATH = process.env.BASE_PATH || path.join(process.cwd(), "storage");
 
 // Run every hour
 cron.schedule("0 * * * *", async () => {
@@ -47,18 +47,27 @@ cron.schedule("0 * * * *", async () => {
     });
 
     for (const link of linksToDelete) {
-      console.log(`[Worker] Hard deleting link ${link.id}...`);
-      
-      for (const file of link.files) {
-        const fullPath = path.join(BASE_PATH, file.storagePath);
-        if (fs.existsSync(fullPath)) {
-          fs.unlinkSync(fullPath);
+      try {
+        console.log(`[Worker] Hard deleting link ${link.id}...`);
+        
+        for (const file of link.files) {
+          const fullPath = path.join(BASE_PATH, file.storagePath);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
         }
+
+        const linkDir = path.join(BASE_PATH, link.id);
+        if (fs.existsSync(linkDir)) {
+          fs.rmSync(linkDir, { recursive: true, force: true });
+        }
+        
+        await prisma.link.delete({
+          where: { id: link.id },
+        });
+      } catch (linkErr) {
+        console.error(`[Worker] Failed to delete link ${link.id}:`, linkErr);
       }
-      
-      await prisma.link.delete({
-        where: { id: link.id },
-      });
     }
 
     if (linksToDelete.length > 0) {

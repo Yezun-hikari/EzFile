@@ -26,7 +26,7 @@ model Session {
 
 model Link {
   id           String    @id @default(uuid())
-  type         String    // "SHARE" or "DROP_ZONE"
+  type         String    // "SHARE", "DROP_ZONE" or "FILE_TUNNEL"
   urlPath      String    @unique
   password     String?   // Plain-text as requested
   maxUsage     Int?

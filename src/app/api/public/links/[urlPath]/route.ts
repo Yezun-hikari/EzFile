@@ -27,7 +27,10 @@ export async function POST(req: Request, { params }: { params: { urlPath: string
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    if (link.status !== "ACTIVE") {
+    if (link.status !== "ACTIVE" || (link.expiresAt && new Date(link.expiresAt) <= new Date()) || (link.maxUsage !== null && link.usageCount >= link.maxUsage)) {
+      if (link.status === "ACTIVE") {
+        await prisma.link.update({ where: { id: link.id }, data: { status: "EXPIRED" } });
+      }
       return NextResponse.json({ error: "Link expired or unavailable" }, { status: 403 });
     }
 
@@ -58,7 +61,10 @@ export async function GET(req: Request, { params }: { params: { urlPath: string 
       include: { files: true },
     });
 
-    if (!link || link.status !== "ACTIVE") {
+    if (!link || link.status !== "ACTIVE" || (link.expiresAt && new Date(link.expiresAt) <= new Date()) || (link.maxUsage !== null && link.usageCount >= link.maxUsage)) {
+      if (link && link.status === "ACTIVE") {
+        await prisma.link.update({ where: { id: link.id }, data: { status: "EXPIRED" } });
+      }
       return NextResponse.json({ error: "Not found or expired" }, { status: 404 });
     }
 

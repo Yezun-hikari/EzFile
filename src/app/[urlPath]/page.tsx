@@ -201,7 +201,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
         });
       } catch (err) {
         if (attempt === maxRetries) throw err;
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, Math.min(Math.pow(2, attempt) * 1000, 10000)));
       }
     }
   };
@@ -225,6 +225,7 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
         const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
         const chunkLoaded = new Array(totalChunks).fill(0);
 
+        let smoothedBps = 0;
         const updateOverallProgress = () => {
           const fileUploaded = chunkLoaded.reduce((a, b) => a + b, 0);
           const currentUploaded = totalUploaded + fileUploaded;
@@ -232,15 +233,19 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
 
           const now = Date.now();
           const timeDiff = (now - lastTime) / 1000;
-          if (timeDiff >= 0.25 || currentUploaded === totalSize) {
-            const totalTimeSec = (now - uploadStartTime) / 1000;
-            const avgBps = totalTimeSec > 0 ? currentUploaded / totalTimeSec : 0;
-            const actualMbps = (avgBps / (1024 * 1024)).toFixed(1);
+          if (timeDiff >= 0.4 || currentUploaded === totalSize) {
+            const totalTimeSec = Math.max((now - uploadStartTime) / 1000, 0.1);
+            const instantAvgBps = currentUploaded / totalTimeSec;
+            smoothedBps = smoothedBps === 0 ? instantAvgBps : 0.3 * instantAvgBps + 0.7 * smoothedBps;
+            const displayMbps = (smoothedBps / (1024 * 1024)).toFixed(1);
 
-            const remSec = avgBps > 0 ? (totalSize - currentUploaded) / avgBps : 0;
-            const etaStr = remSec > 0 && currentUploaded < totalSize ? ` - ETA ~${formatEta(remSec)}` : "";
+            let etaStr = "";
+            if (smoothedBps > 0 && currentUploaded < totalSize && totalTimeSec >= 1.5) {
+              const remSec = (totalSize - currentUploaded) / smoothedBps;
+              etaStr = ` - ETA ~${formatEta(remSec)}`;
+            }
 
-            setUploadSpeed(`${actualMbps} MB/s${etaStr}`);
+            setUploadSpeed(`${displayMbps} MB/s${etaStr}`);
             lastTime = now;
           }
         };

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { transferManager } from "@/lib/transferManager";
 import archiver from "archiver";
 import fs from "fs";
 import path from "path";
@@ -30,7 +31,13 @@ async function generateZipStream(fileIds: string[], password?: string) {
   }
 
   for (const file of files) {
-    if (!isAdmin && file.link.type === "DROP_ZONE" && file.link.password && file.link.password !== password) {
+    if (file.link.status !== "ACTIVE" || (file.link.expiresAt && new Date(file.link.expiresAt) <= new Date()) || (file.link.maxUsage !== null && file.link.usageCount >= file.link.maxUsage)) {
+      if (file.link.status === "ACTIVE") {
+        await prisma.link.update({ where: { id: file.link.id }, data: { status: "EXPIRED" } });
+      }
+      return NextResponse.json({ error: "Link expired or unavailable" }, { status: 403 });
+    }
+    if (!isAdmin && file.link.password && file.link.password !== password) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
@@ -42,11 +49,25 @@ async function generateZipStream(fileIds: string[], password?: string) {
     zlib: { level: isLarge ? 0 : 3 }
   });
 
+  const transferId = `zip-download-${Date.now()}`;
+  transferManager.startTransfer(transferId, "ezfile_download.zip", "DOWNLOAD", totalSize);
+  let bytesTransferred = 0;
+
   const stream = new ReadableStream({
     start(controller) {
-      archive.on('data', (chunk) => controller.enqueue(new Uint8Array(chunk)));
-      archive.on('end', () => controller.close());
-      archive.on('error', (err) => controller.error(err));
+      archive.on('data', (chunk) => {
+        bytesTransferred += chunk.length;
+        transferManager.updateTransfer(transferId, bytesTransferred);
+        controller.enqueue(new Uint8Array(chunk));
+      });
+      archive.on('end', () => {
+        transferManager.completeTransfer(transferId);
+        controller.close();
+      });
+      archive.on('error', (err) => {
+        transferManager.failTransfer(transferId);
+        controller.error(err);
+      });
 
       const BASE_PATH = process.env.BASE_PATH || path.join(process.cwd(), "storage");
       const names = new Set<string>();
@@ -68,6 +89,10 @@ async function generateZipStream(fileIds: string[], password?: string) {
       }
 
       archive.finalize();
+    },
+    cancel() {
+      transferManager.failTransfer(transferId);
+      archive.abort();
     }
   });
 

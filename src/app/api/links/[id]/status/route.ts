@@ -23,9 +23,23 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     revalidatePath("/admin");
 
-    return NextResponse.json({ link });
+    return NextResponse.json({ link: serializeBigInts(link) });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Failed to update link status" }, { status: 500 });
   }
+}
+
+function serializeBigInts(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj === "bigint") return obj.toString();
+  if (Array.isArray(obj)) return obj.map(serializeBigInts);
+  if (typeof obj === "object" && !(obj instanceof Date)) {
+    const res: any = {};
+    for (const key of Object.keys(obj)) {
+      res[key] = serializeBigInts(obj[key]);
+    }
+    return res;
+  }
+  return obj;
 }

@@ -56,8 +56,8 @@ export default function TransfersPage() {
             No active transfers right now.
           </div>
         ) : (
-          transfers.map((t, idx) => (
-            <div key={idx} className="p-4 border rounded-md bg-card flex items-center justify-between">
+          transfers.map((t) => (
+            <div key={t.id} className="p-4 border rounded-md bg-card flex items-center justify-between">
               <div>
                 <p className="font-medium">{t.filename}</p>
                 <p className="text-sm text-muted-foreground">

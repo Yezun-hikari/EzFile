@@ -14,8 +14,11 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       include: { link: true },
     });
 
-    if (!file || file.link.status !== "ACTIVE") {
-      return new NextResponse("Not Found", { status: 404 });
+    if (!file || file.link.status !== "ACTIVE" || (file.link.expiresAt && new Date(file.link.expiresAt) <= new Date()) || (file.link.maxUsage !== null && file.link.usageCount >= file.link.maxUsage)) {
+      if (file && file.link.status === "ACTIVE") {
+        await prisma.link.update({ where: { id: file.link.id }, data: { status: "EXPIRED" } });
+      }
+      return new NextResponse("Not Found or Expired", { status: 404 });
     }
 
     const filePath = path.join(BASE_PATH, file.storagePath);
@@ -37,10 +40,19 @@ export async function GET(req: Request, { params }: { params: { fileId: string }
       "Content-Disposition": `attachment; filename="${encodeURIComponent(file.originalName)}"`,
     };
 
+    let startOffset = 0;
+    if (rangeHeader) {
+      const parts = rangeHeader.replace(/bytes=/, "").split("-");
+      const parsedStart = parseInt(parts[0], 10);
+      if (!isNaN(parsedStart) && parsedStart > 0 && parsedStart < totalSize) {
+        startOffset = parsedStart;
+      }
+    }
+
     const transferId = `download-${file.id}-${Date.now()}`;
     transferManager.startTransfer(transferId, file.originalName, "DOWNLOAD", totalSize);
 
-    let bytesDownloaded = 0;
+    let bytesDownloaded = startOffset;
     const progressStream = new Transform({
       transform(chunk, encoding, callback) {
         bytesDownloaded += chunk.length;
