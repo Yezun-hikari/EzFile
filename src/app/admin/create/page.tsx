@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { processDroppedOrSelectedFiles } from "@/lib/zipFolder";
 
 export default function CreateLinkPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function CreateLinkPage() {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState("");
+  const [zipProgress, setZipProgress] = useState("");
 
   const handleGeneratePassword = () => {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
@@ -26,10 +28,15 @@ export default function CreateLinkPage() {
     setPassword(p);
   };
 
-  const handleFileDrop = (e: React.DragEvent) => {
+  const handleFileDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+    const processed = await processDroppedOrSelectedFiles(
+      e.dataTransfer.items,
+      e.dataTransfer.files,
+      (msg) => setZipProgress(msg)
+    );
+    if (processed.length > 0) {
+      setFiles((prev) => [...prev, ...processed]);
     }
   };
 
@@ -252,22 +259,66 @@ export default function CreateLinkPage() {
             onDrop={handleFileDrop}
             className="border-2 border-dashed border-primary/50 rounded-lg p-12 text-center bg-primary/5 hover:bg-primary/10 transition-colors"
           >
-            <p className="text-lg font-medium text-primary mb-2">Drag & Drop files here</p>
-            <p className="text-sm text-muted-foreground mb-4">or click to select files</p>
-            <Input 
-              type="file" 
-              multiple 
-              className="max-w-xs mx-auto"
-              onChange={e => {
-                if (e.target.files) setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-              }}
-            />
+            <p className="text-lg font-medium text-primary mb-2">Drag & Drop files or folders here</p>
+            <p className="text-sm text-muted-foreground mb-6">Ordner werden automatisch komprimiert (Live Zip)</p>
+            <div className="flex flex-wrap justify-center gap-4 mb-4">
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2">
+                  Dateien auswählen
+                </span>
+                <input 
+                  type="file" 
+                  multiple 
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (e.target.files) {
+                      const processed = await processDroppedOrSelectedFiles(null, e.target.files, setZipProgress);
+                      setFiles((prev) => [...prev, ...processed]);
+                    }
+                  }}
+                />
+              </label>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2">
+                  Ordner auswählen (.zip)
+                </span>
+                <input 
+                  type="file" 
+                  multiple 
+                  {...({ webkitdirectory: "" } as any)}
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (e.target.files) {
+                      const processed = await processDroppedOrSelectedFiles(null, e.target.files, setZipProgress);
+                      setFiles((prev) => [...prev, ...processed]);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            {zipProgress && (
+              <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md text-sm text-primary font-medium animate-pulse">
+                ⚡ {zipProgress}
+              </div>
+            )}
             {files.length > 0 && (
               <div className="mt-6 text-left border-t border-primary/20 pt-4">
-                <h4 className="font-medium mb-2">Selected Files ({files.length}):</h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium">Selected Files ({files.length}):</h4>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setFiles([])}>Clear All</Button>
+                </div>
+                <ul className="text-sm text-muted-foreground space-y-1 max-h-40 overflow-y-auto">
                   {files.map((f, i) => (
-                    <li key={i}>{f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)</li>
+                    <li key={i} className="flex justify-between items-center">
+                      <span>{f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
+                        className="text-destructive hover:underline text-xs ml-2"
+                      >
+                        Remove
+                      </button>
+                    </li>
                   ))}
                 </ul>
               </div>

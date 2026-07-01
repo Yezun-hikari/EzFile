@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Download, UploadCloud, FileIcon, X, CheckSquare, Square, Trash2, Archive, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { processDroppedOrSelectedFiles } from "@/lib/zipFolder";
 
 export default function PublicLinkPage({ params }: { params: { urlPath: string } }) {
   type LinkData = {
@@ -32,6 +33,19 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSpeed, setUploadSpeed] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [zipProgress, setZipProgress] = useState("");
+
+  const handleFileDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const processed = await processDroppedOrSelectedFiles(
+      e.dataTransfer.items,
+      e.dataTransfer.files,
+      (msg) => setZipProgress(msg)
+    );
+    if (processed.length > 0) {
+      setUploadFiles((prev) => [...prev, ...processed]);
+    }
+  };
 
   // Bulk actions state
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -444,22 +458,76 @@ export default function PublicLinkPage({ params }: { params: { urlPath: string }
           renderFilesList()
         ) : (
           <>
-          <div className="border rounded-lg bg-card p-8 text-center max-w-xl mx-auto shadow-sm">
+          <div 
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleFileDrop}
+            className="border rounded-lg bg-card p-8 text-center max-w-xl mx-auto shadow-sm hover:bg-primary/5 transition-colors border-dashed border-2 border-primary/40"
+          >
             <UploadCloud className="w-16 h-16 text-primary mx-auto mb-4" />
-            <h3 className="text-xl font-medium mb-4">Upload Files</h3>
-            <Input 
-              type="file" 
-              multiple 
-              onChange={(e) => {
-                if (e.target.files) setUploadFiles(Array.from(e.target.files));
-              }}
-              className="max-w-xs mx-auto mb-6"
-            />
+            <h3 className="text-xl font-medium mb-2">Upload Files or Folders</h3>
+            <p className="text-sm text-muted-foreground mb-6">Drag & Drop oder Schaltflächen nutzen. Ordner werden automatisch komprimiert (.zip)</p>
+            
+            <div className="flex flex-wrap justify-center gap-4 mb-6">
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2">
+                  Dateien auswählen
+                </span>
+                <input 
+                  type="file" 
+                  multiple 
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (e.target.files) {
+                      const processed = await processDroppedOrSelectedFiles(null, e.target.files, setZipProgress);
+                      setUploadFiles((prev) => [...prev, ...processed]);
+                    }
+                  }}
+                />
+              </label>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2">
+                  Ordner auswählen (.zip)
+                </span>
+                <input 
+                  type="file" 
+                  multiple 
+                  {...({ webkitdirectory: "" } as any)}
+                  className="hidden"
+                  onChange={async (e) => {
+                    if (e.target.files) {
+                      const processed = await processDroppedOrSelectedFiles(null, e.target.files, setZipProgress);
+                      setUploadFiles((prev) => [...prev, ...processed]);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            {zipProgress && (
+              <div className="mb-6 p-3 bg-primary/10 border border-primary/20 rounded-md text-sm text-primary font-medium animate-pulse">
+                ⚡ {zipProgress}
+              </div>
+            )}
+
             {uploadFiles.length > 0 && (
               <div className="mb-6 text-left border rounded p-4 bg-muted/30">
-                <p className="font-medium mb-2 text-sm">Selected ({uploadFiles.length}):</p>
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-medium text-sm">Selected ({uploadFiles.length}):</p>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setUploadFiles([])}>Clear All</Button>
+                </div>
                 <ul className="text-sm space-y-1 text-muted-foreground max-h-32 overflow-y-auto">
-                  {uploadFiles.map((f, i) => <li key={i} className="truncate">{f.name}</li>)}
+                  {uploadFiles.map((f, i) => (
+                    <li key={i} className="flex justify-between items-center">
+                      <span className="truncate">{f.name} ({(f.size / 1024 / 1024).toFixed(2)} MB)</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setUploadFiles(uploadFiles.filter((_, idx) => idx !== i))}
+                        className="text-destructive hover:underline text-xs ml-2 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
